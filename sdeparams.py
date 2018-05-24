@@ -40,6 +40,7 @@ class Zimmer:
         if self.ndim == 1:
             std = np.sqrt(cov[0]/n)
             dist = norm(loc=mean[0], scale=std)
+            return dist.pdf(data_next), None
 
         elif self.ndim > self.n_obs:
             cov = np.reshape(cov, (self.ndim, self.ndim))
@@ -54,9 +55,16 @@ class Zimmer:
             if min_eig_hid < 0.:
                 cov_hid -= 2*min_eig_hid*np.eye(*cov_hid.shape)
 
-            dist = multivariate_normal(mean[:self.n_obs], cov_obs/n, allow_singular=True)
+            if np.linalg.det(cov_obs) == 0.:
+                #cov_obs+=1e-6*np.eye(*cov_obs.shape)
+                if mean[:self.n_obs] == data_next:
+                    return 1., mean[self.n_obs:]
+                else:
+                    return 1e-9, mean[self.n_obs:]
 
-            prefactor = np.dot(cov[:self.n_obs, self.n_obs:], np.linalg.inv(cov_hid))
+            dist = multivariate_normal(mean[:self.n_obs], cov_obs/n)
+
+            prefactor = np.zeros((self.ndim-self.n_obs, self.n_obs)) if np.linalg.det(cov_obs) == 0. else np.dot(cov[self.n_obs:, :self.n_obs], np.linalg.inv(cov_obs))
             hidden_data = mean[self.n_obs:] + np.dot(prefactor, data_next - mean[:self.n_obs])
 
             return dist.pdf(data_next), hidden_data
@@ -82,7 +90,7 @@ class Zimmer:
         total = 0.
         for i in range(len(data)-1):
             estimation = self.likelihood_next(now, data[i+1], times[i], times[i+1], *params)
-            total -= np.log1p(estimation[0])
+            total -= np.log(estimation[0])
             if self.ndim > self.n_obs:
                 now = np.append(data[i+1], estimation[1])
             else:
@@ -118,7 +126,10 @@ class Zimmer:
             if min_eig_hid < 0.:
                 cov_hid -= 2*min_eig_hid*np.eye(*cov_hid.shape)
 
-            prefactor = np.dot(cov[:self.n_obs, self.n_obs:], np.linalg.inv(cov_hid))
+            if np.linalg.det(cov_obs) == 0.:
+                return mean
+
+            prefactor = np.dot(cov[self.n_obs:, :self.n_obs], np.linalg.inv(cov_obs))
             hidden_data = mean[self.n_obs:] + np.dot(prefactor, data_next - mean[:self.n_obs])
 
             return np.concatenate((np.random.multivariate_normal(mean[:self.n_obs], cov_obs/n), hidden_data))
@@ -144,3 +155,108 @@ class Zimmer:
             else:
                 now = data[i+1]
         return np.array(x_t)
+
+def likelihood_next(params, LNA, data_now, data_next, time_now, time_next, n_obs=None, estimate_N=True,
+                    N=None, timestep=10000):
+    '''Returns the probability of obtaining the data point at time t_{i+1}
+    via the LNA starting from the data point at time t_i given a set of
+    parameter values'''
+
+    ndim = data_now.shape[0]
+    if n_obs is None:
+        n_obs = ndim
+
+    t = np.linspace(time_now, time_next, timestep)
+
+    init_cond = np.array([data_now, 0.]) if ndim == 1 else np.concatenate((data_now, np.zeros(ndim**2)))
+    lna = odeint(LNA, init_cond, t, args=tuple(params))[-1]
+    mean = lna[0:ndim]
+    cov = lna[ndim:]
+
+    n = params[-1] if estimate_N else N
+
+    if ndim == 1:
+        std = np.sqrt(cov[0]/n)
+        dist = norm(loc=mean[0], scale=std)
+        return dist.pdf(data_next), None
+
+    elif ndim > n_obs:
+        cov = np.reshape(cov, (ndim, ndim))
+        cov_obs = cov[:n_obs, :n_obs]
+        cov_hid = cov[n_obs:, n_obs:]
+        min_eig_obs = np.min(np.real(np.linalg.eigvals(cov_obs)))
+        min_eig_hid = np.min(np.real(np.linalg.eigvals(cov_hid)))
+
+        if min_eig_obs < 0.:
+            cov_obs -= 2*min_eig_obs*np.eye(*cov_obs.shape)
+
+        if min_eig_hid < 0.:
+            cov_hid -= 2*min_eig_hid*np.eye(*cov_hid.shape)
+
+        if np.linalg.det(cov_obs) == 0.:
+            #cov_obs+=1e-6*np.eye(*cov_obs.shape)
+            if mean[:n_obs] == data_next:
+                return 1., mean[n_obs:]
+            else:
+                return 1e-9, mean[n_obs:]
+
+        dist = multivariate_normal(mean[:n_obs], cov_obs/n)
+
+        prefactor = np.dot(cov[n_obs:, :n_obs], np.linalg.inv(cov_obs))
+        hidden_data = np.maximum(mean[n_obs:] + np.dot(prefactor, data_next - mean[:n_obs]), np.zeros(ndim-n_obs))
+
+        return dist.pdf(data_next), hidden_data
+
+    else:
+        cov = np.reshape(cov, (ndim, ndim))
+        min_eig = np.min(np.real(np.linalg.eigvals(cov)))
+        if min_eig < 0.:
+            cov -= 2*min_eig*np.eye(*cov.shape)
+        dist = multivariate_normal(mean, cov/n, allow_singular=True)
+        return dist.pdf(data_next), None
+
+
+
+def draw_next(params, LNA, data_now, data_next, time_now, time_next, n_obs=None, estimate_N=True,
+              N=None, timestep=10000):
+    '''Returns a candidate data point at time t_{i+1} given the real data
+    point at time t_i'''
+
+    ndim = data_now.shape[0]
+    if n_obs is None:
+        n_obs = ndim
+
+    t = np.linspace(time_now, time_next, timestep)
+
+    init_cond = np.array([data_now, 0.]) if ndim == 1 else np.concatenate((data_now, np.zeros(ndim**2)))
+    lna = odeint(LNA, init_cond, t, args=tuple(params))[-1]
+    mean = lna[0:ndim]
+    cov = lna[ndim:]
+
+    n = params[-1] if estimate_N else N
+
+    if ndim == 1:
+        std = np.sqrt(cov[0]/n)
+        return np.random.normal(loc=mean[0], scale=std)
+    elif ndim > n_obs:
+        cov = np.reshape(cov, (ndim, ndim))
+        cov_obs = cov[:n_obs, :n_obs]
+        cov_hid = cov[n_obs:, n_obs:]
+        min_eig_obs = np.min(np.real(np.linalg.eigvals(cov_obs)))
+        min_eig_hid = np.min(np.real(np.linalg.eigvals(cov_hid)))
+
+        if min_eig_obs < 0.:
+            cov_obs -= 2*min_eig_obs*np.eye(*cov_obs.shape)
+        if min_eig_hid < 0.:
+            cov_hid -= 2*min_eig_hid*np.eye(*cov_hid.shape)
+
+        if np.linalg.det(cov_obs) == 0.:
+            return mean
+
+        prefactor = np.zeros((ndim-n_obs, n_obs)) if np.linalg.det(cov_obs) == 0. else np.dot(cov[n_obs:, :n_obs], np.linalg.inv(cov_obs))
+        hidden_data = mean[n_obs:] + np.dot(prefactor, data_next - mean[:n_obs])
+
+        return np.concatenate((np.random.multivariate_normal(mean[:n_obs], cov_obs/n), hidden_data))
+    else:
+        cov = np.reshape(cov, (ndim, ndim))
+        return np.random.multivariate_normal(mean, cov/n)
