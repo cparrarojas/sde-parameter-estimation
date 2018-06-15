@@ -19,12 +19,18 @@ with
 
 ## Usage
 
-`Zimmer(A, B, J, data, n_dims, n_obs)` constructs an object with the LNA and the objective function given the corresponding `n_dims x n_dims` matrices and the data with `n_obs` observed variables in the tuple form `(observations, timepoints)`.
+`Zimmer(A, B, J, measurements, ndim, optional_arguments)` constructs an object with the LNA and the objective function given the corresponding `ndim x ndim` matrices and measurements in the tuple form `(datapoints, timepoints)`.
+
+Optional arguments:
+- `n_obs`: number of observed variables. Default value: `None`, which corresponds to a fully observed system.
+- `timestep`: number of between-datapoint steps for integrating the ODEs from the LNA. Default value: `10000`.
+- `estimate_N`: whether to estimate the size of the system. Default value: `True`.
+- `N`: size of the system&mdash;only works if `estimate_N==False`. Default value: `None`.
 
 The objective function can be then directly evaluated for a set of parameters or passed as an argument to an optimiser (arbitrary choice):
 
 ```python
-zimmer = Zimmer(A, B, J, data, n_dims, n_obs)
+zimmer = Zimmer(A, B, J, measurements, ndim)
 single_evaluation = zimmer.costfn(parameter_1, parameter_2,...)
 ```
 or
