@@ -39,7 +39,7 @@ or
 estimation = optimiser(zimmer.costfn, optimiser_specific_arguments)
 ```
 
-The first part of the Jupyter notebook [`examples.ipynb`](examples.ipynb) reproduces the original results for the cases with and without unobserved states.  
+The first part of the Jupyter notebook [`examples.ipynb`](examples.ipynb) illustrates the module for cases with and without unobserved states.  
 **Note:** the case with external noise has not been implemented yet.
 
 Please, refer to the examples to see how to specify the list of parameters to be estimated.

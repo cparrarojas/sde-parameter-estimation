@@ -57,10 +57,6 @@ class Zimmer:
 
             if np.linalg.det(cov_obs) == 0.:
                 cov_obs+=1e-6*np.eye(*cov_obs.shape)
-            #    if mean[:self.n_obs] == data_next:
-            #        return 1., mean[self.n_obs:]
-            #    else:
-            #        return 1e-9, mean[self.n_obs:]
 
             dist = multivariate_normal(mean[:self.n_obs], cov_obs/n)
 
@@ -195,10 +191,6 @@ def likelihood_next(params, LNA, data_now, data_next, time_now, time_next, n_obs
 
         if np.linalg.det(cov_obs) == 0.:
             cov_obs+=1e-6*np.eye(*cov_obs.shape)
-        #    if mean[:n_obs] == data_next:
-        #        return 1., mean[n_obs:]
-        #    else:
-        #        return 1e-9, mean[n_obs:]
 
         dist = multivariate_normal(mean[:n_obs], cov_obs/n)
 
