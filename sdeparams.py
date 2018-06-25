@@ -16,11 +16,11 @@ class Zimmer:
 
     def LNA(self, x, t, *params):
         y = np.maximum(x[:self.ndim], np.zeros(self.ndim))
-        x_det = self.A(y, *params)
+        x_det = self.A(y, t, *params)
         Xi = np.reshape(x[self.ndim:], (self.ndim,self.ndim))
-        J = self.Jac(y, *params)
-        dXidt = np.dot(J, Xi) + np.dot(Xi, J.transpose()) + self.B(y, *params)
-
+        J = self.Jac(y, t, *params)
+        dXidt = np.dot(J, Xi) + np.dot(Xi, J.transpose()) + self.B(y, t, *params)
+        
         return np.concatenate((x_det, dXidt.flatten()))
 
     def likelihood_next(self, data_now, data_next, time_now, time_next, *params):
