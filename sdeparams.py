@@ -16,11 +16,11 @@ class Zimmer:
 
     def LNA(self, x, t, *params):
         y = np.maximum(x[:self.ndim], np.zeros(self.ndim))
-        x_det = self.A(y, *params)
+        x_det = self.A(y, t, *params)
         Xi = np.reshape(x[self.ndim:], (self.ndim,self.ndim))
-        J = self.Jac(y, *params)
-        dXidt = np.dot(J, Xi) + np.dot(Xi, J.transpose()) + self.B(y, *params)
-
+        J = self.Jac(y, t, *params)
+        dXidt = np.dot(J, Xi) + np.dot(Xi, J.transpose()) + self.B(y, t, *params)
+        
         return np.concatenate((x_det, dXidt.flatten()))
 
     def likelihood_next(self, data_now, data_next, time_now, time_next, *params):
@@ -56,15 +56,11 @@ class Zimmer:
                 cov_hid -= 2*min_eig_hid*np.eye(*cov_hid.shape)
 
             if np.linalg.det(cov_obs) == 0.:
-                #cov_obs+=1e-6*np.eye(*cov_obs.shape)
-                if mean[:self.n_obs] == data_next:
-                    return 1., mean[self.n_obs:]
-                else:
-                    return 1e-9, mean[self.n_obs:]
+                cov_obs+=1e-6*np.eye(*cov_obs.shape)
 
             dist = multivariate_normal(mean[:self.n_obs], cov_obs/n)
 
-            prefactor = np.zeros((self.ndim-self.n_obs, self.n_obs)) if np.linalg.det(cov_obs) == 0. else np.dot(cov[self.n_obs:, :self.n_obs], np.linalg.inv(cov_obs))
+            prefactor = np.dot(cov[self.n_obs:, :self.n_obs], np.linalg.inv(cov_obs))
             hidden_data = mean[self.n_obs:] + np.dot(prefactor, data_next - mean[:self.n_obs])
 
             return dist.pdf(data_next), hidden_data
@@ -194,11 +190,7 @@ def likelihood_next(params, LNA, data_now, data_next, time_now, time_next, n_obs
             cov_hid -= 2*min_eig_hid*np.eye(*cov_hid.shape)
 
         if np.linalg.det(cov_obs) == 0.:
-            #cov_obs+=1e-6*np.eye(*cov_obs.shape)
-            if mean[:n_obs] == data_next:
-                return 1., mean[n_obs:]
-            else:
-                return 1e-9, mean[n_obs:]
+            cov_obs+=1e-6*np.eye(*cov_obs.shape)
 
         dist = multivariate_normal(mean[:n_obs], cov_obs/n)
 
