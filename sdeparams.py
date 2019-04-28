@@ -20,7 +20,7 @@ class Zimmer:
         Xi = np.reshape(x[self.ndim:], (self.ndim,self.ndim))
         J = self.Jac(y, t, *params)
         dXidt = np.dot(J, Xi) + np.dot(Xi, J.transpose()) + self.B(y, t, *params)
-        
+
         return np.concatenate((x_det, dXidt.flatten()))
 
     def likelihood_next(self, data_now, data_next, time_now, time_next, *params):
@@ -86,7 +86,7 @@ class Zimmer:
         total = 0.
         for i in range(len(data)-1):
             estimation = self.likelihood_next(now, data[i+1], times[i], times[i+1], *params)
-            total -= np.log(estimation[0])
+            total -= np.log1p(estimation[0])
             if self.ndim > self.n_obs:
                 now = np.append(data[i+1], estimation[1])
             else:
